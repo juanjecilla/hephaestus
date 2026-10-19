@@ -25,8 +25,10 @@ Also: [`snippets/AGENTS-a11y.md`](snippets/AGENTS-a11y.md) (rules to paste into 
 Claude Code:
 ```
 /plugin marketplace add juanjecilla/hephestus
-/plugin install hephestus
+/plugin install hephestus --marketplace juanjecilla/hephestus
 ```
+*Install lines are untested against GitHub until the repo is public; `claude plugin validate .` passes.*
+
 Other agents: copy `skills/<name>` into the folder your agent reads (`.agents/skills/`, `~/.claude/skills/`…). Each skill is self-contained except `a11y-audit`, which also calls `talkback-speak`.
 
 ## Try it in two minutes
