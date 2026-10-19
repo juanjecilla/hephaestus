@@ -1,0 +1,7 @@
+{
+  "name": "hephestus",
+  "owner": { "name": "Juanje Cilla", "url": "https://github.com/juanjecilla" },
+  "plugins": [
+    { "name": "hephestus", "source": "./", "description": "Skills and tools to build with AI agents. First module: Android accessibility." }
+  ]
+}
