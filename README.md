@@ -11,6 +11,8 @@ Built for the talk *a11y on Android? AI makes it easy* (DevFest Jerez 2026). Wor
 | Skill | Does | Needs |
 |---|---|---|
 | [`a11y-audit`](skills/a11y-audit) | static scan of Compose sources + tree audit of a running screen, report per person | python3, adb |
+| [`a11y-pr-review`](skills/a11y-pr-review) | accessibility review of a diff, scanner on added lines only, usable in CI | git, python3 |
+| [`content-description-gen`](skills/content-description-gen) | proposes localised descriptions for static images, for review | a vision-capable model |
 | [`a11y-fix`](skills/a11y-fix) | idiomatic fixes + tests (semantics assertions, ATF) | your code |
 | [`device-toggles`](skills/device-toggles) | TalkBack, font scale, display size, animations, contrast, colour filters, screenshots, recordings, reset | adb |
 | [`talkback-speak`](skills/talkback-speak) | approximates what TalkBack says, as text | python3 |
@@ -44,7 +46,7 @@ The scripts are heuristics. They find missing labels, small targets, gesture-onl
 
 ## Roadmap
 
-`content-description-gen` (vision-model descriptions for static drawables), `a11y-pr-review` (accessibility review of a diff in CI), and more AI tooling beyond accessibility.
+more AI tooling beyond accessibility. Next in a11y: a `webview-audit`, Switch Access and Voice Access recipes, and Gemini in Android Studio prompt packs per skill.
 
 ## License
 

@@ -2,14 +2,26 @@
   "name": "hephestus",
   "version": "0.1.0",
   "description": "Agent skills and tools for building with AI. First module: Android accessibility — audit, fix, test, and understand what a screen reader hears.",
-  "author": { "name": "Juanje Cilla", "url": "https://github.com/juanjecilla" },
+  "author": {
+    "name": "Juanje Cilla",
+    "url": "https://github.com/juanjecilla"
+  },
   "homepage": "https://github.com/juanjecilla/hephestus",
   "repository": "https://github.com/juanjecilla/hephestus",
   "license": "Apache-2.0",
-  "keywords": ["android", "accessibility", "a11y", "jetpack-compose", "talkback", "skills"],
+  "keywords": [
+    "android",
+    "accessibility",
+    "a11y",
+    "jetpack-compose",
+    "talkback",
+    "skills"
+  ],
   "skills": [
     "./skills/a11y-audit",
     "./skills/a11y-fix",
+    "./skills/a11y-pr-review",
+    "./skills/content-description-gen",
     "./skills/device-toggles",
     "./skills/talkback-speak",
     "./skills/contrast-check"
