@@ -39,7 +39,7 @@ def scan_file(path):
 
     for i, line in enumerate(lines):
         s = line.strip()
-        if s.startswith(("//", "*", "/*")):
+        if s.startswith(("//", "*", "/*", "import ", "package ")):
             continue
         near = "\n".join(lines[max(0, i - WINDOW_BEFORE): i + WINDOW_AFTER])
         before = "\n".join(lines[max(0, i - 6): i + 1])
