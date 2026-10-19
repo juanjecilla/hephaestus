@@ -1,4 +1,4 @@
-# hephestus
+# hephaestus
 
 Skills and tools to build with AI agents. The first module is **Android accessibility**: audit an app, fix what you find, test it so it stays fixed, and hear what a screen reader hears.
 
@@ -24,8 +24,8 @@ Also: [`snippets/AGENTS-a11y.md`](snippets/AGENTS-a11y.md) (rules to paste into 
 
 Claude Code:
 ```
-/plugin marketplace add juanjecilla/hephestus
-/plugin install hephestus --marketplace juanjecilla/hephestus
+/plugin marketplace add juanjecilla/hephaestus
+/plugin install hephaestus --marketplace juanjecilla/hephaestus
 ```
 *Install lines are untested against GitHub until the repo is public; `claude plugin validate .` passes.*
 

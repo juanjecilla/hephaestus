@@ -1,6 +1,6 @@
 # Prompts for Gemini in Android Studio (Agent mode)
 
-Paste into Gemini in Android Studio. They match the `hephestus` skills, for people who prefer the IDE to a CLI. Gemini does not read `SKILL.md` files: the prompt carries the rules.
+Paste into Gemini in Android Studio. They match the `hephaestus` skills, for people who prefer the IDE to a CLI. Gemini does not read `SKILL.md` files: the prompt carries the rules.
 
 ## Audit one screen (no edits)
 > Audit `SearchScreen.kt` and the composables it calls for accessibility. Do not change any code. For each finding give: file:line, what a TalkBack user experiences, and the fix. Check: missing or duplicated contentDescription, touch targets under 48dp (an IconButton with Modifier.size is a bug), clickables without role or onClickLabel, gestures with no alternative, text in dp, hard-coded colours. Group the findings by person: blind, low vision, cognitive, motor. Say what you could not check.
