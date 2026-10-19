@@ -47,7 +47,8 @@ case "$cmd" in
       sh settings put secure enabled_accessibility_services "$TALKBACK"
       sh settings put secure accessibility_enabled 1
     else
-      sh settings put secure enabled_accessibility_services ""
+      # `settings put … ""` loses the empty argument through adb shell ("Bad arguments"): delete the keys instead
+      sh settings delete secure enabled_accessibility_services
       sh settings put secure accessibility_enabled 0
     fi ;;
   font-scale) sh settings put system font_scale "${1:?scale required}" ;;
@@ -77,7 +78,7 @@ case "$cmd" in
     sh settings put secure high_text_contrast_enabled 0
     sh settings put secure accessibility_display_inversion_enabled 0
     sh settings put secure accessibility_display_daltonizer_enabled 0
-    sh settings put secure enabled_accessibility_services ""
+    sh settings delete secure enabled_accessibility_services
     sh settings put secure accessibility_enabled 0
     sh wm density reset
     echo "reset done" ;;

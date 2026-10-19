@@ -6,8 +6,8 @@
     setContent { SearchField(query = "dune", onQueryChange = {}) }
     onNodeWithContentDescription("Clear search")
         .assertHasClickAction()
-        .assertTouchHeightIsAtLeast(48.dp)
-        .assertTouchWidthIsAtLeast(48.dp)
+        .assertTouchHeightIsEqualTo(48.dp)      // touch bounds; there is no "AtLeast" variant for touch
+        .assertTouchWidthIsEqualTo(48.dp)
 }
 
 @Test fun seasonHeaderIsAnExpandableButton() = runComposeUiTest {
@@ -20,7 +20,7 @@
     onNodeWithTag("card").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.CustomActions))
 }
 ```
-Print the tree when a matcher fails: `onRoot().printToLog("a11y")`.
+Match on roles and states, not on text, when the string resources are localised (the JVM's locale picks the language). Print the tree when a matcher fails: `onRoot().printToLog("a11y")`. Checked: `assertTouchHeightIsEqualTo`, `assertHeightIsAtLeast` and `assertTouchWidthIsEqualTo` exist in Compose UI Test 1.12; `assertTouchHeightIsAtLeast` does not.
 
 ## 2 · Automatic checks, Android only (Accessibility Test Framework)
 Artifact `androidx.compose.ui:ui-test-junit4-accessibility` (Compose 1.8.0+). Checks content labels, contrast, touch target size, traversal order on what the test renders.

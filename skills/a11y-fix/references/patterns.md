@@ -20,13 +20,14 @@ Row(Modifier.clickable(onClickLabel = stringResource(R.string.open_settings), ro
 `clickable` merges descendants. For non-clickable groups use `Modifier.semantics(mergeDescendants = true) {}`.
 
 ## Touch targets (48 × 48 dp)
+Compose enlarges the *touch bounds* of clickable elements to 48 × 48 dp even when the layout is smaller
+(`Modifier.size(24.dp)` on an `IconButton` still has a 48 dp hit area). **Measure before you "fix"**:
 ```kotlin
-// wrong: the container is forced to 24 dp, so is the target
-IconButton(onClick = onClear, modifier = Modifier.size(24.dp)) { Icon(...) }
-// right: size the icon, keep the button's 48 dp
-IconButton(onClick = onClear) { Icon(..., modifier = Modifier.size(24.dp)) }
-// custom clickable: Modifier.minimumInteractiveComponentSize() before .clickable
+onNode(hasClickAction()).assertTouchHeightIsEqualTo(48.dp).assertTouchWidthIsEqualTo(48.dp)
 ```
+It becomes a real problem when something removes the expansion (`LocalMinimumInteractiveComponentSize provides
+Dp.Unspecified`), when neighbours are closer than the target, or when a scanner reports layout bounds. Then:
+`Modifier.minimumInteractiveComponentSize()` before `.clickable`, or give the element real padding.
 
 ## Headings
 ```kotlin

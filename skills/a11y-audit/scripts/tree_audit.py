@@ -35,34 +35,38 @@ def has_labelled_child(n):
     return any(label(c) or has_labelled_child(c) for c in n)
 
 
-def walk(n, path=""):
+def walk(n, path="", scroll=()):
+    """Yield (path, node, bounds of the scrollable ancestors that may clip it)."""
     for i, c in enumerate(n):
         p = f"{path}/{i}"
-        yield p, c
-        yield from walk(c, p)
+        yield p, c, scroll
+        inner = scroll + ((bounds(c),) if c.get("scrollable") == "true" and bounds(c) else ())
+        yield from walk(c, p, inner)
 
 
 def audit(xml_path, density=420):
     scale = density / 160.0
     root = ET.parse(xml_path).getroot()
-    screen = max((bounds(n) for _, n in walk(root) if bounds(n)), key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+    screen = max((bounds(n) for _, n, _ in walk(root) if bounds(n)), key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
     out, labels = [], {}
-    for path, n in walk(root):
+    for path, n, scrollers in walk(root):
         b = bounds(n)
         if not b:
             continue
         w, h = (b[2] - b[0]) / scale, (b[3] - b[1]) / scale
+        tol = 1.5 / scale  # px rounding: 48 dp at 2.625 px/dp is 126 px, a 125 px node is not a bug
         cls, lab = n.get("class", "").split(".")[-1], label(n)
         clickable = n.get("clickable") == "true"
         where = {"path": path, "class": cls, "bounds": n.get("bounds"), "label": lab, "size_dp": [round(w), round(h)]}
-        clipped = b[0] <= screen[0] or b[1] <= screen[1] or b[2] >= screen[2] or b[3] >= screen[3]
-        if clickable and clipped and (w < MIN_DP or h < MIN_DP or not lab) and not has_labelled_child(n):
+        edges = [screen] + list(scrollers)
+        clipped = any(b[0] <= e[0] or b[1] <= e[1] or b[2] >= e[2] or b[3] >= e[3] for e in edges)
+        if clickable and clipped and (w < MIN_DP - tol or h < MIN_DP - tol):
             # lazy lists compose only what is on screen: a sliver at the edge has no label yet, and is not a real target
             out.append({"rule": "clipped", "person": "motor", "severity": "info", **where})
         elif clickable:
             if not lab and not has_labelled_child(n):
                 out.append({"rule": "unlabeled", "person": "blind", "severity": "error", **where})
-            if w < MIN_DP or h < MIN_DP:
+            if w < MIN_DP - tol or h < MIN_DP - tol:
                 out.append({"rule": "small-target", "person": "motor", "severity": "error", **where})
             if lab.lower() in GENERIC:
                 out.append({"rule": "generic-label", "person": "blind", "severity": "warning", **where})

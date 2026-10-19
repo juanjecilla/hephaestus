@@ -25,6 +25,7 @@ Find the problems first, with evidence, and say who each one hurts. Fixing is `a
 
 ## Rules
 
+- **Verify every finding before you report or fix it.** In the talk's own audit the static scan raised four errors and none was a real bug (three decorative icons beside text, and a 24 dp button whose touch area Compose had already made 48 dp), and the agent itself reported two motor findings that the code contradicted. Prove it with a test or the device, then report.
 - Never claim a pass. A clean tool run means the tool found nothing. Say what was **not** checked (real TalkBack run, Switch Access, users).
 - Separate **confirmed** (reproduced on device or obvious in code) from **suspected**.
 - Dismiss system dialogs before dumping. Run `device-toggles reset` at the end.

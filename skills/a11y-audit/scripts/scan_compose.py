@@ -14,7 +14,7 @@ Rules (each names the person it hurts):
   literal-color         Color(0x…) in a composable file: check contrast with contrast-check    lowvision info
 
 It is a window-based regex scan: it misses what is built elsewhere and flags what is fine. Treat each hit as
-"look here", then confirm on the device (a11y-audit, talkback-speak). A clean scan is not a pass.
+"look here", then confirm with a test or on the device (a11y-audit, talkback-speak). A clean scan is not a pass.
 """
 import json, re, sys, pathlib
 
@@ -50,7 +50,7 @@ def scan_file(path):
             chain = "\n".join(lines[i: i + 3])
             m = SIZE.search(chain)
             if m and not re.search(r"\b(Icon|Image|AsyncImage)\(", chain.split(m.group(0))[0].splitlines()[-1] if m.group(0) in chain else "") and float(m.group(1)) < 48:
-                add("small-target", "motor", "error", i, f"{m.group(1)}.dp is below the 48.dp minimum touch target")
+                add("small-target", "motor", "warning", i, f"laid out at {m.group(1)}.dp. Compose enlarges the touch bounds to 48.dp, so check touchBounds (test) before calling it a bug")
         if NULL_DESC.search(line):
             if CLICK.search(before):
                 add("null-desc-clickable", "blind", "error", i, "no label on an element the user can activate")
