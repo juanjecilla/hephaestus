@@ -8,8 +8,8 @@
     {
       "name": "hephaestus",
       "source": "./",
-      "description": "Skills and tools to build with AI agents. First module: Android accessibility."
+      "description": "Skills and tools to build with AI agents: Android accessibility, and agent workflow (a CodeRabbit-paced merge queue)."
     }
   ],
-  "description": "Skills and tools to build with AI agents. First module: Android accessibility."
+  "description": "Skills and tools to build with AI agents: Android accessibility, and agent workflow (a CodeRabbit-paced merge queue)."
 }

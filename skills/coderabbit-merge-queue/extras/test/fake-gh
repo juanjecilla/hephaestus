@@ -1,0 +1,47 @@
+#!/bin/bash
+# A stand-in for `gh` driven by JSON fixtures in $FAKE_DIR. Every call is logged to
+# $FAKE_DIR/log. `--json … -q FILTER` is answered by running FILTER over a fixture with jq:
+#   pr-N.json        what `gh pr view N --json …` sees
+#   checks-N.json    [{name, bucket, required}] for `gh pr checks N`; with checks-N.1.json,
+#                    checks-N.2.json… the k-th call reads the k-th file (the last one repeats)
+#   repo.json        what `gh repo view --json …` sees
+#   api/<path>.json  what `gh api <path>` returns, `/` in the path written as `_` (missing: [])
+# A file fail-<verb> (e.g. fail-merge) makes that verb exit 1. A `--watch` over a pending
+# check touches $FAKE_DIR/stalled, since the real one would block until it finishes.
+set -u
+echo "$*" >>"$FAKE_DIR/log"
+filter='.'; required=0; watch=0; args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -q|--jq) filter="$2"; shift 2 ;;
+    --json|--repo|-R|--body|--base|--comment|--interval) shift 2 ;;
+    --required) required=1; shift ;;
+    --watch) watch=1; shift ;;
+    --*) shift ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+if [ "${args[0]:-}" = api ]; then
+  f="$FAKE_DIR/api/$(tr / _ <<<"${args[1]}").json"
+  if [ -e "$f" ]; then jq -r "$filter" "$f"; else jq -rn "[] | $filter"; fi
+  exit 0
+fi
+cmd="${args[0]:-} ${args[1]:-}"; n="${args[2]:-}"
+[ -e "$FAKE_DIR/fail-${args[1]:-}" ] && exit 1
+case "$cmd" in
+  "pr view") jq -r "$filter" "$FAKE_DIR/pr-$n.json" ;;
+  "pr checks")
+    count_file="$FAKE_DIR/.checks-$n-count"; k=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 )); echo "$k" >"$count_file"
+    f="$FAKE_DIR/checks-$n.json"
+    if [ -e "$FAKE_DIR/checks-$n.1.json" ]; then
+      f="$FAKE_DIR/checks-$n.$k.json"; while [ ! -e "$f" ] && [ "$k" -gt 1 ]; do k=$((k - 1)); f="$FAKE_DIR/checks-$n.$k.json"; done
+    fi
+    set_="$(if [ "$required" = 1 ]; then jq '[.[]|select(.required)]' "$f"; else cat "$f"; fi)"
+    # A real `--watch` on a check that never finishes blocks forever: record it instead.
+    if [ "$watch" = 1 ] && jq -e 'any(.[]; .bucket == "pending")' <<<"$set_" >/dev/null; then touch "$FAKE_DIR/stalled"; fi
+    jq -r "$filter" <<<"$set_" ;;
+  "repo view") jq -r "$filter" "$FAKE_DIR/repo.json" ;;
+  "pr merge") touch "$FAKE_DIR/merged-$n" ;;
+  "pr edit") jq '.baseRefName = "edited"' "$FAKE_DIR/pr-$n.json" >"$FAKE_DIR/.tmp" && mv "$FAKE_DIR/.tmp" "$FAKE_DIR/pr-$n.json" ;;
+  *) : ;;  # comment, ready, update-branch, close: logged only
+esac
