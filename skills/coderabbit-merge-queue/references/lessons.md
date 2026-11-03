@@ -84,6 +84,10 @@ scripts: most odd-looking lines exist for one of these.
   and only then started 35 minutes of CI from its `update-branch`. Update the
   next PR's branch *before* the wait (it is still a draft, so it costs no
   review) and sleep only what is left since the recorded request.
+- **CodeRabbit's hour starts at its reply, not at your request.** Timed to the
+  second from the request, the next one was refused "available in 37
+  seconds". Add a margin to the window, and when a rate-limit reply states a
+  short wait, sit it out and ask once more instead of stopping the queue.
 
 - **One process with the whole ordered list.** A ladder of waiters, each
   watching the previous one's output, cascades into "skipped" on any STOP and

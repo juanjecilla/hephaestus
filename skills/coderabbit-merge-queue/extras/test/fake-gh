@@ -7,7 +7,9 @@
 #   repo.json        what `gh repo view --json …` sees
 #   api/<path>.json  what `gh api <path>` returns, `/` in the path written as `_` (missing: [])
 # A file fail-<verb> (e.g. fail-merge) makes that verb exit 1. A file race-edit-N holding a branch
-# makes `pr edit N` fail the way it does when GitHub retargeted N first, and sets that base. A `--watch` over a pending
+# makes `pr edit N` fail the way it does when GitHub retargeted N first, and sets that base.
+# A file on-comment-N.json replaces pr-N.json on the next `pr comment N` (a review that a
+# fresh request brings in). A `--watch` over a pending
 # check touches $FAKE_DIR/stalled, since the real one would block until it finishes.
 set -u
 echo "$*" >>"$FAKE_DIR/log"
@@ -47,6 +49,7 @@ case "$cmd" in
     jq -r "$filter" <<<"$set_" ;;
   "repo view") jq -r "$filter" "$FAKE_DIR/repo.json" ;;
   "pr merge") touch "$FAKE_DIR/merged-$n" ;;
+  "pr comment") [ -e "$FAKE_DIR/on-comment-$n.json" ] && mv "$FAKE_DIR/on-comment-$n.json" "$FAKE_DIR/pr-$n.json"; : ;;
   "pr edit") jq '.baseRefName = "edited"' "$FAKE_DIR/pr-$n.json" >"$FAKE_DIR/.tmp" && mv "$FAKE_DIR/.tmp" "$FAKE_DIR/pr-$n.json" ;;
   *) : ;;  # comment, ready, update-branch, close: logged only
 esac

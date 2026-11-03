@@ -114,7 +114,8 @@ queue and rerun it with the longer list: a queue that is only sleeping loses
 nothing. `BASE_BRANCH` defaults to the repo's default branch; set it under
 git flow, where PRs target `develop` but `main` is the default.
 
-`nextpr.sh` times the window from the **last review request**, which it
+`nextpr.sh` times the window (plus `MARGIN`, 180 s, because CodeRabbit starts
+its hour at its own reply, about a minute after the request) from the **last review request**, which it
 records in a stamp file (`STAMP`, default `extras/.last-request-<owner_repo>`),
 not from the last merge. Before it waits it runs `gh pr update-branch` on the
 PR, which is still a draft, so the push spends no review and CI runs during the
@@ -133,7 +134,7 @@ Fix the cause, then restart **from that PR** with the rest of the list
 | `review state=COMMENTED inline=0` | Findings are in the review **body** (look for "Outside diff range" / 🟡 / 🟠). Fix them; nothing to reply to inline. If the body has none and the decision is APPROVED, just merge by hand. |
 | `merge conflict with base` | Merge the base into the branch, resolve (usually both sides plus updating to the base's new helpers), run the touched modules' tests, push. |
 | `CI failing` | Read `gh run view <id> --log-failed`, grep `e: `/`FAILED`/`What went wrong`. A branch merged with a refactor often breaks on references the refactor removed. |
-| `rate limited` / `no review in N min` | Nothing to fix; restart from that PR. If its last fixes are pushed and the decision is still CHANGES_REQUESTED, comment `@coderabbitai resolve` and merge once it reads APPROVED. |
+| `rate limited` / `no review in N min` | A stated wait up to `RATE_RETRY_MAX` (900 s) was already sat out and asked once more, so this means a long wait or a second refusal. Nothing to fix; restart from that PR. If its last fixes are pushed and the decision is still CHANGES_REQUESTED, comment `@coderabbitai resolve` and merge once it reads APPROVED. |
 | `review state=CHANGES_REQUESTED inline=N unanswered` | The last review's findings were never answered; resolving would approve them. Handle them exactly as the `CHANGES_REQUESTED` row (fix in one push, reply to every comment), then restart from that PR. |
 | `merge refused` | Check branch protection / required checks; never `--admin` around the gate. |
 | `required checks still pending after Ns` | Find the stuck check (`gh pr checks N --required`). A runner that never picked the job up: rerun it (`gh run rerun <id>`). A check that waits on an outside service: look at that service. Restart from that PR once it moves. |

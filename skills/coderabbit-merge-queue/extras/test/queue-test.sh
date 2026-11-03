@@ -17,7 +17,7 @@ trap 'rm -rf "${TMPS[@]}"' EXIT
 setup() {
   FAKE_DIR="$(mktemp -d)"; export FAKE_DIR; TMPS+=("$FAKE_DIR")
   mkdir "$FAKE_DIR/bin"; ln -s "$HERE/fake-gh" "$FAKE_DIR/bin/gh"
-  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60 RETARGET_WAIT=0 STAMP="$FAKE_DIR/stamp"
+  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60 RETARGET_WAIT=0 MARGIN=0 RATE_MARGIN=0 STAMP="$FAKE_DIR/stamp"
   echo '{"nameWithOwner":"o/r","defaultBranchRef":{"name":"main"}}' >"$FAKE_DIR/repo.json"
 }
 # pr N STATE [DECISION] [BASE] [COMMENT_BODY]
@@ -69,6 +69,27 @@ expect_has "a rate-limit reply after the head was approved still merges (#512)" 
 setup; pr 7 none CHANGES_REQUESTED develop "Review limit reached"; checks 7 "$REQ_PASS"
 out="$("$X/fullreview.sh" 7 "$SINCE")"
 expect "a rate limit with no approval of the head stops" "$out" "STOP 7: rate limited (full review)"
+
+# limited N WAIT_TEXT: a rate-limit reply posted after the request (2099), no review yet
+limited() { pr "$1" none CHANGES_REQUESTED develop "Review limit reached. Your next included review will be available in $2."
+  jq '.comments[0].createdAt = "2099-01-01T00:00:00Z"' "$FAKE_DIR/pr-$1.json" >"$FAKE_DIR/t" && mv "$FAKE_DIR/t" "$FAKE_DIR/pr-$1.json"; }
+approved_later() { echo "{\"reviews\":[{\"author\":{\"login\":\"coderabbitai\"},\"submittedAt\":\"2099-01-01T00:00:00Z\",\"state\":\"APPROVED\",\"commit\":{\"oid\":\"abc\"}}],\"comments\":[],\"reviewDecision\":\"APPROVED\",\"headRefOid\":\"abc\",\"baseRefName\":\"develop\"}" >"$FAKE_DIR/on-comment-$1.json"; }
+
+setup; limited 40 "0 seconds"; approved_later 40; checks 40 "$REQ_PASS"
+out="$(RATE_MARGIN=0 "$X/fullreview.sh" 40 "$SINCE")"
+expect_has "a rate limit with seconds to go is sat out and asked again (#588)" "$out" "merged 40"
+expect_has "with a new request" "$(cat "$FAKE_DIR/log")" "pr comment 40 --body @coderabbitai full review"
+expect_has "which is recorded for the next window" "$(cat "$FAKE_DIR/stamp" 2>/dev/null)" "$(date +%s | cut -c1-6)"
+
+setup; limited 41 "47 minutes"; checks 41 "$REQ_PASS"
+out="$("$X/fullreview.sh" 41 "$SINCE")"
+expect "a long stated wait still stops at once" "$out" "STOP 41: rate limited (full review)"
+expect "without asking again" "$(grep -c 'pr comment 41' "$FAKE_DIR/log")" "0"
+
+setup; limited 42 "1 minute and 5 seconds"; checks 42 "$REQ_PASS"
+out="$(RATE_RETRY_MAX=64 "$X/fullreview.sh" 42 "$SINCE")"
+expect "minutes and seconds both count towards the stated wait (65 s is over a 64 s limit)" "$out" "STOP 42: rate limited (full review)"
+expect "so it does not ask again" "$(grep -c 'pr comment 42' "$FAKE_DIR/log")" "0"
 
 setup; pr 8 none; checks 8 "$REQ_PASS"
 out="$(REVIEW_WAIT=1 "$X/fullreview.sh" 8 "$SINCE")"
