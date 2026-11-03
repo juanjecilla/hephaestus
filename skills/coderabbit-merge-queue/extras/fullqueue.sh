@@ -7,6 +7,7 @@
 D="$(cd "$(dirname "$0")" && pwd)"
 R="${REPO:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
 BASE="${BASE_BRANCH:-$(gh repo view "$R" --json defaultBranchRef -q .defaultBranchRef.name)}"
+export REPO="$R"
 steps=("$@")
 for i in "${!steps[@]}"; do
   s=${steps[$i]}
@@ -14,10 +15,17 @@ for i in "${!steps[@]}"; do
     base:*)
       n=${s#base:}
       # GitHub retargets a stacked PR by itself when its base branch is deleted on merge.
-      if [ "$(gh pr view "$n" --repo "$R" --json baseRefName -q .baseRefName)" = "$BASE" ]; then
+      # It does so seconds after the merge, so a check made right after can still see the old base
+      # and the edit then collides with GitHub's ("A pull request already exists", after #543).
+      base_of() { gh pr view "$n" --repo "$R" --json baseRefName -q .baseRefName; }
+      if [ "$(base_of)" = "$BASE" ]; then
         echo "already on $BASE: $n"
+      elif gh pr edit "$n" --repo "$R" --base "$BASE" >/dev/null 2>&1; then
+        echo "retargeted $n"
       else
-        gh pr edit "$n" --repo "$R" --base "$BASE" >/dev/null && echo "retargeted $n"
+        sleep "${RETARGET_WAIT:-15}"
+        [ "$(base_of)" = "$BASE" ] && echo "already on $BASE: $n (GitHub retargeted it)" \
+          || { echo "STOP $n: could not retarget onto $BASE"; false; }
       fi ;;
     close:*)
       IFS=: read -r _ n m <<<"$s"

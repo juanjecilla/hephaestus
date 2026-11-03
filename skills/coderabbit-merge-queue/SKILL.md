@@ -75,8 +75,10 @@ Before starting:
 - When a PR merges, retarget any PR stacked on its branch
   (`gh pr edit M --base develop`), since CI only runs on PRs into the main
   branches. GitHub often does this by itself when the merged branch is deleted,
-  and then `gh pr edit` fails with "A pull request already exists", so check
-  `baseRefName` first (`fullqueue.sh`'s `base:N` step does).
+  and then `gh pr edit` fails with "A pull request already exists". It does so
+  a few seconds after the merge, so a check made right after can still see the
+  old base: check `baseRefName` first, and on a failed edit wait and check it
+  again (`fullqueue.sh`'s `base:N` step does both).
 - A stacked PR whose base was **squash**-merged still carries the base's
   original commits, and merging develop into it conflicts on every file they
   share. Rebuild it: `git checkout --detach origin/develop`, cherry-pick only
@@ -112,10 +114,18 @@ queue and rerun it with the longer list: a queue that is only sleeping loses
 nothing. `BASE_BRANCH` defaults to the repo's default branch; set it under
 git flow, where PRs target `develop` but `main` is the default.
 
+`nextpr.sh` times the window from the **last review request**, which it
+records in a stamp file (`STAMP`, default `extras/.last-request-<owner_repo>`),
+not from the last merge. Before it waits it runs `gh pr update-branch` on the
+PR, which is still a draft, so the push spends no review and CI runs during the
+wait instead of after the approval. Sleeping a full window after each merge
+used to put the previous PR's CI on top of the window: about 35 minutes lost
+per PR. A restart after a fix waits only what is left of the window too.
+
 ## On `STOP <pr>: <reason>`
 
 Fix the cause, then restart **from that PR** with the rest of the list
-(normal first sleep — CodeRabbit just spent a review on it):
+(the queue waits out what is left of the window since its last request):
 
 | Reason | Do |
 |---|---|
@@ -149,7 +159,8 @@ queue waits, and records a `--watch` over a pending check as a stall, since the
 real one would block. Each stop reason has a case, and so does each incident
 the scripts were changed for: a rate-limit reply posted seconds after an
 approval of the head, an optional check stuck in "queued", a `nextpr.sh`
-deleted under a sleeping queue, and GitHub retargeting a stacked PR itself.
+deleted under a sleeping queue, GitHub retargeting a stacked PR itself (also
+seconds after the check), and the window timed from the last request.
 
 ## Known gaps
 

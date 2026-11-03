@@ -6,7 +6,8 @@
 #                    checks-N.2.json… the k-th call reads the k-th file (the last one repeats)
 #   repo.json        what `gh repo view --json …` sees
 #   api/<path>.json  what `gh api <path>` returns, `/` in the path written as `_` (missing: [])
-# A file fail-<verb> (e.g. fail-merge) makes that verb exit 1. A `--watch` over a pending
+# A file fail-<verb> (e.g. fail-merge) makes that verb exit 1. A file race-edit-N holding a branch
+# makes `pr edit N` fail the way it does when GitHub retargeted N first, and sets that base. A `--watch` over a pending
 # check touches $FAKE_DIR/stalled, since the real one would block until it finishes.
 set -u
 echo "$*" >>"$FAKE_DIR/log"
@@ -27,6 +28,10 @@ if [ "${args[0]:-}" = api ]; then
   exit 0
 fi
 cmd="${args[0]:-} ${args[1]:-}"; n="${args[2]:-}"
+if [ "$cmd" = "pr edit" ] && [ -e "$FAKE_DIR/race-edit-$n" ]; then
+  jq --arg b "$(cat "$FAKE_DIR/race-edit-$n")" '.baseRefName = $b' "$FAKE_DIR/pr-$n.json" >"$FAKE_DIR/.tmp" && mv "$FAKE_DIR/.tmp" "$FAKE_DIR/pr-$n.json"
+  echo "GraphQL: A pull request already exists for base branch" >&2; exit 1
+fi
 [ -e "$FAKE_DIR/fail-${args[1]:-}" ] && exit 1
 case "$cmd" in
   "pr view") jq -r "$filter" "$FAKE_DIR/pr-$n.json" ;;

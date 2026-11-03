@@ -61,7 +61,9 @@ scripts: most odd-looking lines exist for one of these.
   queue marks it ready on its turn.
 - **GitHub retargets stacked PRs by itself** when the merged branch is
   deleted. A later `gh pr edit --base` then fails with "A pull request already
-  exists". Make the retarget idempotent: check `baseRefName` first.
+  exists". Make the retarget idempotent: check `baseRefName` first. GitHub does
+  it a few seconds after the merge, so the check can still see the old base
+  and the edit then collides: on a failed edit, wait and read the base again.
 - **Rebuild a stacked PR after a squash merge; don't merge it.** It still
   carries the base's original commits, so merging the base conflicts on every
   shared file (11 files in one case, 0 after a rebuild). Check out the base
@@ -75,6 +77,13 @@ scripts: most odd-looking lines exist for one of these.
   retargeted.
 
 ## Running the queue
+
+- **Time the window from the last review request, not from the last merge.**
+  A fixed hour of sleep after each merge put the previous PR's CI on top of
+  it: #693 merged at 06:14, the next PR was asked at 07:14, approved at 07:23,
+  and only then started 35 minutes of CI from its `update-branch`. Update the
+  next PR's branch *before* the wait (it is still a draft, so it costs no
+  review) and sleep only what is left since the recorded request.
 
 - **One process with the whole ordered list.** A ladder of waiters, each
   watching the previous one's output, cascades into "skipped" on any STOP and

@@ -17,7 +17,7 @@ trap 'rm -rf "${TMPS[@]}"' EXIT
 setup() {
   FAKE_DIR="$(mktemp -d)"; export FAKE_DIR; TMPS+=("$FAKE_DIR")
   mkdir "$FAKE_DIR/bin"; ln -s "$HERE/fake-gh" "$FAKE_DIR/bin/gh"
-  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60
+  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60 RETARGET_WAIT=0 STAMP="$FAKE_DIR/stamp"
   echo '{"nameWithOwner":"o/r","defaultBranchRef":{"name":"main"}}' >"$FAKE_DIR/repo.json"
 }
 # pr N STATE [DECISION] [BASE] [COMMENT_BODY]
@@ -90,6 +90,16 @@ out="$(BASE_BRANCH=develop "$X/fullqueue.sh" base:11)"
 expect_has "a stacked PR is retargeted" "$out" "retargeted 11"
 expect_has "onto the configured base" "$(cat "$FAKE_DIR/log")" "pr edit 11 --repo o/r --base develop"
 
+setup; pr 30 APPROVED APPROVED feat/x; echo develop >"$FAKE_DIR/race-edit-30"
+out="$(BASE_BRANCH=develop "$X/fullqueue.sh" base:30 2>&1)"
+expect "a retarget that loses the race to GitHub's own carries on (after #543)" "$out" "already on develop: 30 (GitHub retargeted it)
+all done"
+
+setup; pr 31 APPROVED APPROVED feat/x; touch "$FAKE_DIR/fail-edit"
+out="$(BASE_BRANCH=develop "$X/fullqueue.sh" base:31 2>&1)"
+expect "a retarget that fails with the base unchanged stops" "$out" "STOP 31: could not retarget onto develop
+REMAINING: base:31"
+
 setup; pr 12 APPROVED
 out="$("$X/fullqueue.sh" close:12:13)"
 expect_has "close:N:M closes N" "$out" "closed 12"
@@ -99,6 +109,25 @@ setup; pr 14 none; checks 14 "$REQ_PASS"; pr 15 APPROVED feat/y
 out="$(WINDOW=0 REVIEW_WAIT=1 BASE_BRANCH=develop "$X/fullqueue.sh" 14 base:15)"
 expect_has "a stop prints the steps left, the stopped PR first" "$out" "REMAINING: 14 base:15"
 expect "and runs none of them" "$(grep -c 'pr edit 15' "$FAKE_DIR/log")" "0"
+
+echo "nextpr.sh"
+# fresh N: a PR whose review lands after nextpr.sh asks for it
+fresh() { jq '.reviews[0].submittedAt = "2099-01-01T00:00:00Z"' "$FAKE_DIR/pr-$1.json" >"$FAKE_DIR/t" && mv "$FAKE_DIR/t" "$FAKE_DIR/pr-$1.json"; }
+setup; pr 32 APPROVED; fresh 32; checks 32 "$REQ_PASS"; echo 0 >"$FAKE_DIR/stamp"
+out="$("$X/nextpr.sh" 32 3600)"
+expect_has "a window that ran out long ago is not slept again" "$out" "merged 32"
+log="$(cat "$FAKE_DIR/log")"
+expect "the branch is brought up to date while still a draft, before it is marked ready" \
+  "$(grep -nE 'pr (update-branch|ready) 32' <<<"$log" | head -2 | sed 's/:.*pr / /' | cut -d' ' -f2 | tr '\n' ' ')" "update-branch update-branch "
+expect_has "the review request is recorded" "$(cat "$FAKE_DIR/stamp")" "$(date +%s | cut -c1-6)"
+
+setup; pr 33 APPROVED; fresh 33; checks 33 "$REQ_PASS"; date +%s >"$FAKE_DIR/stamp"
+start=$SECONDS; "$X/nextpr.sh" 33 2 >/dev/null
+expect "a review asked for just now waits out the rest of the window" "$(( SECONDS - start >= 1 ))" "1"
+
+setup; pr 34 APPROVED; fresh 34; checks 34 "$REQ_PASS"; rm -f "$FAKE_DIR/stamp"
+start=$SECONDS; "$X/nextpr.sh" 34 2 >/dev/null
+expect "with no record of a request it waits the whole window" "$(( SECONDS - start >= 2 ))" "1"
 
 echo "chain.sh"
 setup; lone="$(mktemp -d)"; TMPS+=("$lone"); cp "$X/chain.sh" "$lone/"
