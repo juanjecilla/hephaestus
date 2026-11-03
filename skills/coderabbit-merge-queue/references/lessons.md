@@ -54,6 +54,12 @@ scripts: most odd-looking lines exist for one of these.
   After merging the base in, run the tests the base brought in
   (`git diff --name-only HEAD@{1} HEAD -- '*test*'`), not only the branch's own.
 
+- **Check CI before asking for the review, not only before the merge.** A
+  golden that a rebuilt PR never re-recorded failed on every push, and the
+  queue still asked for, and fixed, three more reviews before stopping on CI
+  after the approval. The checks run during the window wait, so look at them
+  when it ends.
+
 ## Stacks, drafts and order
 
 - **A push to a ready PR spends a review**, including `gh pr update-branch`

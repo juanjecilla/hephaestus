@@ -142,6 +142,12 @@ expect "the branch is brought up to date while still a draft, before it is marke
   "$(grep -nE 'pr (update-branch|ready) 32' <<<"$log" | head -2 | sed 's/:.*pr / /' | cut -d' ' -f2 | tr '\n' ' ')" "update-branch update-branch "
 expect_has "the review request is recorded" "$(cat "$FAKE_DIR/stamp")" "$(date +%s | cut -c1-6)"
 
+setup; pr 35 APPROVED; fresh 35; checks 35 '[{"name":"build","bucket":"fail","required":true}]'; echo 0 >"$FAKE_DIR/stamp"
+out="$("$X/nextpr.sh" 35 3600)"
+expect "a PR already red stops before its review is asked for (#588)" "$out" "STOP 35: CI failing before review (no review spent)"
+expect "so no review is spent" "$(grep -c 'pr comment 35' "$FAKE_DIR/log")" "0"
+expect "and it stays a draft" "$(grep -c 'pr ready 35' "$FAKE_DIR/log")" "0"
+
 setup; pr 33 APPROVED; fresh 33; checks 33 "$REQ_PASS"; date +%s >"$FAKE_DIR/stamp"
 start=$SECONDS; "$X/nextpr.sh" 33 2 >/dev/null
 expect "a review asked for just now waits out the rest of the window" "$(( SECONDS - start >= 1 ))" "1"
