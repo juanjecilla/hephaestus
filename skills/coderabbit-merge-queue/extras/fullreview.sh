@@ -67,5 +67,10 @@ if [ "$st" != "APPROVED" ] && [ "$(gh pr view "$pr" --json reviewDecision -q .re
 fi
 wait_required_checks || exit 1
 # shellcheck disable=SC2086
-gh pr merge "$pr" ${MERGE_FLAGS:---squash} >/dev/null || { echo "STOP $pr: merge refused"; exit 1; }
+gh pr merge "$pr" ${MERGE_FLAGS:---squash} >/dev/null || {
+  [ "$(gh pr view "$pr" --json mergeable -q .mergeable 2>/dev/null)" = CONFLICTING ] \
+    && echo "STOP $pr: merge conflict with base (approved; merge the base in, push, restart from it)" \
+    || echo "STOP $pr: merge refused"
+  exit 1
+}
 echo "merged $pr"

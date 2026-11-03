@@ -1,7 +1,8 @@
 #!/bin/bash
 # usage: nextpr.sh PR [WINDOW] — wait out the review window, ask for a full review, merge only on APPROVED.
 # Env: REPO (owner/name, else the cwd's), STAMP (file holding when this queue last asked for a review),
-#      MARGIN (seconds added to the window, 180: CodeRabbit starts its hour at its own reply, not at ours).
+#      MARGIN (seconds added to the window, 180: CodeRabbit starts its hour at its own reply, not at ours),
+#      MERGEABLE_POLL (seconds between asks while GitHub reports mergeable UNKNOWN, 10).
 #
 # The window runs from the last review request, not from the last merge. Sleeping a full WINDOW after
 # each merge put the previous PR's CI wait on top of the window: #693 merged at 06:14, #543 was asked
@@ -23,6 +24,14 @@ if gh pr checks "$pr" --repo "$R" --required --json bucket -q '.[].bucket' 2>/de
 fi
 # Again, in case the base moved during the wait (still a draft, still free).
 gh pr update-branch "$pr" --repo "$R" >/dev/null 2>&1
+# A conflict makes update-branch fail quietly and the merge refuse after the approval: stop first.
+# #684 and #558 each spent a review and were then refused, because the PR merged ahead of them
+# touched the same lines. GitHub answers UNKNOWN while it recomputes after a push; ask again.
+for _ in 1 2 3 4 5 6; do
+  m=$(gh pr view "$pr" --repo "$R" --json mergeable -q .mergeable 2>/dev/null)
+  [ "$m" = UNKNOWN ] || break; sleep "${MERGEABLE_POLL:-10}"
+done
+if [ "$m" = CONFLICTING ]; then echo "STOP $pr: merge conflict with base (no review spent)"; exit 1; fi
 gh pr ready "$pr" --repo "$R" >/dev/null 2>&1
 since=$(date -u -d '-1 min' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1M +%Y-%m-%dT%H:%M:%SZ)
 gh pr comment "$pr" --repo "$R" --body "@coderabbitai full review" >/dev/null && date +%s >"$STAMP"

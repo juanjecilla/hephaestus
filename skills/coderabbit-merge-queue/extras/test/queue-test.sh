@@ -17,7 +17,7 @@ trap 'rm -rf "${TMPS[@]}"' EXIT
 setup() {
   FAKE_DIR="$(mktemp -d)"; export FAKE_DIR; TMPS+=("$FAKE_DIR")
   mkdir "$FAKE_DIR/bin"; ln -s "$HERE/fake-gh" "$FAKE_DIR/bin/gh"
-  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60 RETARGET_WAIT=0 MARGIN=0 RATE_MARGIN=0 STAMP="$FAKE_DIR/stamp"
+  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60 RETARGET_WAIT=0 MARGIN=0 RATE_MARGIN=0 MERGEABLE_POLL=0 STAMP="$FAKE_DIR/stamp"
   echo '{"nameWithOwner":"o/r","defaultBranchRef":{"name":"main"}}' >"$FAKE_DIR/repo.json"
 }
 # pr N STATE [DECISION] [BASE] [COMMENT_BODY]
@@ -147,6 +147,19 @@ out="$("$X/nextpr.sh" 35 3600)"
 expect "a PR already red stops before its review is asked for (#588)" "$out" "STOP 35: CI failing before review (no review spent)"
 expect "so no review is spent" "$(grep -c 'pr comment 35' "$FAKE_DIR/log")" "0"
 expect "and it stays a draft" "$(grep -c 'pr ready 35' "$FAKE_DIR/log")" "0"
+
+conflicting() { jq ".mergeable = \"$2\"" "$FAKE_DIR/pr-$1.json" >"$FAKE_DIR/t" && mv "$FAKE_DIR/t" "$FAKE_DIR/pr-$1.json"; }
+setup; pr 36 APPROVED; fresh 36; checks 36 "$REQ_PASS"; conflicting 36 CONFLICTING; echo 0 >"$FAKE_DIR/stamp"
+out="$("$X/nextpr.sh" 36 3600)"
+expect "a PR that conflicts with its base stops before its review is asked for (#684, #558)" "$out" "STOP 36: merge conflict with base (no review spent)"
+expect "so no review is spent on it" "$(grep -c 'pr comment 36' "$FAKE_DIR/log")" "0"
+
+setup; pr 37 APPROVED; fresh 37; checks 37 "$REQ_PASS"; conflicting 37 MERGEABLE; echo 0 >"$FAKE_DIR/stamp"
+expect_has "a mergeable PR goes on to its review" "$("$X/nextpr.sh" 37 3600)" "merged 37"
+
+setup; pr 38 APPROVED; checks 38 "$REQ_PASS"; conflicting 38 CONFLICTING; touch "$FAKE_DIR/fail-merge"
+out="$(REVIEW_WAIT=1 "$X/fullreview.sh" 38 2000-01-01T00:00:00Z)"
+expect_has "a merge refused over a conflict says so" "$out" "STOP 38: merge conflict with base"
 
 setup; pr 33 APPROVED; fresh 33; checks 33 "$REQ_PASS"; date +%s >"$FAKE_DIR/stamp"
 start=$SECONDS; "$X/nextpr.sh" 33 2 >/dev/null
