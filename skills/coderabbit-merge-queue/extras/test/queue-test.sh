@@ -131,6 +131,11 @@ out="$(WINDOW=0 REVIEW_WAIT=1 BASE_BRANCH=develop "$X/fullqueue.sh" 14 base:15)"
 expect_has "a stop prints the steps left, the stopped PR first" "$out" "REMAINING: 14 base:15"
 expect "and runs none of them" "$(grep -c 'pr edit 15' "$FAKE_DIR/log")" "0"
 
+setup; pr 50 APPROVED CHANGES_REQUESTED; checks 50 "$REQ_PASS"
+out="$(REVIEW_WAIT=1 "$X/fullreview.sh" 50 2000-01-01T00:00:00Z)"
+expect_has "an approval replaced by a later review stops before merging (#563)" "$out" "STOP 50: review state=CHANGES_REQUESTED (a later review replaced the approval)"
+expect "and nothing is merged" "$([ -e "$FAKE_DIR/merged-50" ] && echo yes || echo no)" "no"
+
 echo "nextpr.sh"
 # fresh N: a PR whose review lands after nextpr.sh asks for it
 fresh() { jq '.reviews[0].submittedAt = "2099-01-01T00:00:00Z"' "$FAKE_DIR/pr-$1.json" >"$FAKE_DIR/t" && mv "$FAKE_DIR/t" "$FAKE_DIR/pr-$1.json"; }

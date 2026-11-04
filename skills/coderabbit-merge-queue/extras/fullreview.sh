@@ -66,6 +66,11 @@ if [ "$st" != "APPROVED" ] && [ "$(gh pr view "$pr" --json reviewDecision -q .re
   echo "STOP $pr: review state=$st"; exit 1
 fi
 wait_required_checks || exit 1
+# The approval can be an early one: replies that resolve CodeRabbit's threads earn an empty APPROVED,
+# and the full review lands minutes later (#563: approved 14:08, CHANGES_REQUESTED 14:19, merge refused
+# by branch protection). Read the decision again after the CI wait, right before merging.
+decision="$(gh pr view "$pr" --json reviewDecision -q .reviewDecision)"
+if [ "$decision" != "APPROVED" ]; then echo "STOP $pr: review state=$decision (a later review replaced the approval)"; exit 1; fi
 # shellcheck disable=SC2086
 gh pr merge "$pr" ${MERGE_FLAGS:---squash} >/dev/null || {
   [ "$(gh pr view "$pr" --json mergeable -q .mergeable 2>/dev/null)" = CONFLICTING ] \

@@ -116,3 +116,7 @@ scripts: most odd-looking lines exist for one of these.
 ## Check the PR still merges before spending its review
 
 `gh pr update-branch` fails quietly on a conflict, so a PR whose base moved under it (the PR merged ahead of it touched the same lines) was reviewed, approved, and then refused at `gh pr merge` — twice in one day (#684, #558), an hour each. `nextpr.sh` now reads `mergeable` after the update (polling while GitHub reports `UNKNOWN`) and stops with `merge conflict with base (no review spent)`; `fullreview.sh` names the conflict when a merge is refused anyway.
+
+## An approval is not final until the merge
+
+Replying to CodeRabbit's comments can resolve its threads and earn an empty APPROVED (#563, 14:08). The full review it was still running landed eleven minutes later as CHANGES_REQUESTED, after the queue had taken the approval and started waiting for CI. Branch protection refused the merge, so nothing wrong landed, but the STOP said `merge refused`. `fullreview.sh` now reads `reviewDecision` again after the CI wait and stops with the real state.
