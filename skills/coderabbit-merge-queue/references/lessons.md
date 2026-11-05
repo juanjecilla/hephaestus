@@ -120,3 +120,28 @@ scripts: most odd-looking lines exist for one of these.
 ## An approval is not final until the merge
 
 Replying to CodeRabbit's comments can resolve its threads and earn an empty APPROVED (#563, 14:08). The full review it was still running landed eleven minutes later as CHANGES_REQUESTED, after the queue had taken the approval and started waiting for CI. Branch protection refused the merge, so nothing wrong landed, but the STOP said `merge refused`. `fullreview.sh` now reads `reviewDecision` again after the CI wait and stops with the real state.
+
+## Stacks whose base was squash-merged
+
+A PR stacked on a branch that later squash-merged still carries that branch's original commits, so merging the base in produces dozens of add/add conflicts (#665: 35). Rebuild instead: `git log origin/<base>..<branch>` names the PR's own commits; check out the base detached, cherry-pick only those (`git checkout --conflict=diff3 <file>` shows the common ancestor while resolving), force-push with a lease, and redo every PR stacked on top the same way. The queue's `base:N` step only retargets; the rebuild is yours.
+
+## After every merge, check the rest of the queue
+
+The PR that just merged can make any later one conflict. `nextpr.sh` stops such a PR before spending its review, but you only find out when its turn comes, an hour later. Right after each merge, read `mergeable` for every queued PR (poll while it says `UNKNOWN`) and fix the conflicts while they wait.
+
+## When pushes fail, check GitHub before your keys
+
+`Permission denied (publickey)` over SSH and `Internal Server Error` over HTTPS at the same time was a GitHub incident, not a key problem: `curl -s https://www.githubstatus.com/api/v2/summary.json`. Pushing without touching git config: `git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/O/R.git HEAD:refs/heads/B`, in a retry loop. Reply "fixed in <sha>" only after the push has landed; a reply naming a commit that is not on GitHub misleads the reviewer.
+
+## A required job "cancelled" with no steps
+
+A runner that never arrived (macOS capacity during an Actions incident) shows as a required check `cancelled` with zero steps, and `nextpr.sh` stops on it as failing CI. `gh run rerun <id> --failed`, then chain the queue behind the rerun. Confirm the rerun registered (the bucket reads `pending`) before a waiter polls it, or it reads the old failure and moves on.
+
+## Chains in background shells
+
+Background commands may run in zsh, where an unquoted `$list` does not split into words: `fullqueue.sh $ok` passed `" 497"` as one PR number. Use an array, `${=ok}` in zsh, or a loop that quotes each number.
+
+## Push back with a measurement
+
+A finding that asks for "strict by default" can be wrong for reasons only a run shows. #497's reviewer asked to rethrow on any resolution failure; a run showed 663 configurations fail that call on every host, so strict would have broken every job. Measure first, then either fix or reply with the number and what does guarantee the property. If the same point comes back, stop and ask the owner rather than loop.
+

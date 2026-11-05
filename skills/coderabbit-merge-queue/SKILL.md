@@ -146,6 +146,7 @@ Fix the cause, then restart **from that PR** with the rest of the list
 ## Lessons
 
 [references/lessons.md](references/lessons.md) records the incident behind each odd-looking rule. Read it before changing the scripts.
+[references/ci-token-patterns.md](references/ci-token-patterns.md) covers a PR that adds a bot which pushes from CI (token lifetime, keeping secrets away from the build, accepting only additions, trigger gates): the findings CodeRabbit raised one per round on such a PR, in one place.
 
 ## Tests
 
