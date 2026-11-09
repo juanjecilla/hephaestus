@@ -1,12 +1,17 @@
 # hephaestus
 
-Skills and tools to build with AI agents. The first module is **Android accessibility**: audit an app, fix what you find, test it so it stays fixed, and hear what a screen reader hears.
+Skills and tools to build with AI agents. Two modules so far:
+
+- **Android accessibility**: audit an app, fix what you find, test it so it stays fixed, and hear what a screen reader hears.
+- **Agent workflow**: merge a backlog of agent-written PRs behind a rate-limited AI reviewer, one at a time, and stop the moment something needs judgement.
 
 > Hephaestus, the Greek god of the forge, was lame, and built his own assistive technology: golden maidens who helped him walk (Iliad 18). Build what you need.
 
 Built for the talk *a11y on Android? AI makes it easy* (DevFest Jerez 2026). Works with Claude Code, and with any agent that reads `SKILL.md` files.
 
 ## Skills
+
+### Android accessibility
 
 | Skill | Does | Needs |
 |---|---|---|
@@ -18,7 +23,15 @@ Built for the talk *a11y on Android? AI makes it easy* (DevFest Jerez 2026). Wor
 | [`talkback-speak`](skills/talkback-speak) | approximates what TalkBack says, as text | python3 |
 | [`contrast-check`](skills/contrast-check) | WCAG contrast of a pair, of Material colour schemes, of hard-coded colours | python3 |
 
-Also: [`snippets/AGENTS-a11y.md`](snippets/AGENTS-a11y.md) (rules to paste into your `AGENTS.md`) and [`snippets/gemini-prompts.md`](snippets/gemini-prompts.md) (the same workflow for Gemini in Android Studio).
+### Agent workflow
+
+| Skill | Does | Needs |
+|---|---|---|
+| [`coderabbit-merge-queue`](skills/coderabbit-merge-queue) | background queue: one PR per CodeRabbit review window, merges only on approval + green required checks, `STOP <pr>: <reason>` otherwise; tested against a fake `gh` | bash, gh, jq |
+
+[`references/lessons.md`](skills/coderabbit-merge-queue/references/lessons.md) lists the incidents behind each script rule.
+
+Also: [`snippets/AGENTS-agent-workflow.md`](snippets/AGENTS-agent-workflow.md) (git, review, bot-PR and release-train rules for agents, to paste into your `AGENTS.md`), [`snippets/AGENTS-a11y.md`](snippets/AGENTS-a11y.md) (rules to paste into your `AGENTS.md`) and [`snippets/gemini-prompts.md`](snippets/gemini-prompts.md) (the same workflow for Gemini in Android Studio).
 
 ## Install
 
@@ -30,6 +43,8 @@ Claude Code:
 *Install lines are untested against GitHub until the repo is public; `claude plugin validate .` passes.*
 
 Other agents: copy `skills/<name>` into the folder your agent reads (`.agents/skills/`, `~/.claude/skills/`…). Each skill is self-contained except `a11y-audit`, which also calls `talkback-speak`.
+
+Test the merge queue scripts after changing them: `skills/coderabbit-merge-queue/extras/test/queue-test.sh`.
 
 ## Try it in two minutes
 
@@ -48,7 +63,7 @@ The scripts are heuristics. They find missing labels, small targets, gesture-onl
 
 ## Roadmap
 
-more AI tooling beyond accessibility. Next in a11y: a `webview-audit`, Switch Access and Voice Access recipes, and Gemini in Android Studio prompt packs per skill.
+More agent-workflow tooling (a release-notes generator from conventional commits, Dependabot regeneration workflows). Next in a11y: a `webview-audit`, Switch Access and Voice Access recipes, and Gemini in Android Studio prompt packs per skill.
 
 ## License
 
