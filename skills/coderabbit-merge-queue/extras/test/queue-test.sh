@@ -207,6 +207,27 @@ setup; qpr 23 CHANGES_REQUESTED; checks 23 "$REQ_PASS"
 out="$(SLEEP_SCALE=0 REPO=o/r "$Q" 23)"
 expect "queue.sh stops on changes requested" "$out" "STOP 23: review state=CHANGES_REQUESTED inline=0"
 
+echo "stacks.sh"
+# bp N HEAD BASE: a PR with only the branch names stacks.sh reads.
+bp() { echo "{\"headRefName\":\"$2\",\"baseRefName\":\"$3\"}" >"$FAKE_DIR/pr-$1.json"; }
+setup; bp 1 a develop; bp 2 b a; bp 3 c b
+out="$(REPO=o/r "$X/stacks.sh" 1 2 3)"
+expect "a three-level stack is one group, root first" "$out" "stack 1 2 3"
+
+setup; bp 4 a develop; bp 5 b develop
+out="$(REPO=o/r "$X/stacks.sh" 4 5)"
+expect "independent PRs are each solo" "$out" "solo 4
+solo 5"
+
+setup; bp 6 a develop; bp 7 b a; bp 8 c develop
+out="$(REPO=o/r "$X/stacks.sh" 8 7 6)"
+expect "a mixed list keeps list order of the roots, chains from the root regardless of order given" "$out" "solo 8
+stack 6 7"
+
+setup; bp 9 a develop; bp 10 b a
+out="$(REPO=o/r "$X/stacks.sh" 10)"
+expect "a child whose base is not in the list is solo" "$out" "solo 10"
+
 echo
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
