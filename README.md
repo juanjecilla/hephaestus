@@ -27,7 +27,7 @@ Built for the talk *a11y on Android? AI makes it easy* (DevFest Jerez 2026). Wor
 
 | Skill | Does | Needs |
 |---|---|---|
-| [`coderabbit-merge-queue`](skills/coderabbit-merge-queue) | background queue: one PR per CodeRabbit review window, merges only on approval + green required checks, `STOP <pr>: <reason>` otherwise; tested against a fake `gh` | bash, gh, jq |
+| [`coderabbit-merge-queue`](skills/coderabbit-merge-queue) | background queue: one PR per CodeRabbit review window, merges only on approval + green required checks, `STOP <pr>: <reason>` otherwise; the session stays a thin orchestrator and a cheap fixer subagent (one per stack) handles each stop; tested against a fake `gh` | bash, gh, jq |
 
 [`references/lessons.md`](skills/coderabbit-merge-queue/references/lessons.md) lists the incidents behind each script rule.
 
@@ -41,6 +41,8 @@ Claude Code:
 /plugin install hephaestus --marketplace juanjecilla/hephaestus
 ```
 *Install lines are untested against GitHub until the repo is public; `claude plugin validate .` passes.*
+
+The merge queue's orchestrator delegates fixes to two subagents; install them once with `cp skills/coderabbit-merge-queue/agents/*.md ~/.claude/agents/` (a plugin install does not register agents that live inside a skill folder).
 
 Other agents: copy `skills/<name>` into the folder your agent reads (`.agents/skills/`, `~/.claude/skills/`…). Each skill is self-contained except `a11y-audit`, which also calls `talkback-speak`.
 

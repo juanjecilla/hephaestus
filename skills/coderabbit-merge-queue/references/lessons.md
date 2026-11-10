@@ -145,3 +145,7 @@ Background commands may run in zsh, where an unquoted `$list` does not split int
 
 A finding that asks for "strict by default" can be wrong for reasons only a run shows. #497's reviewer asked to rethrow on any resolution failure; a run showed 663 configurations fail that call on every host, so strict would have broken every job. Measure first, then either fix or reply with the number and what does guarantee the property. If the same point comes back, stop and ask the owner rather than loop.
 
+## A long queue filled the main session
+
+Every `STOP` cost a read-fix-reply-restart cycle in the one session that also owned the queue, so unrelated PRs piled up in a single transcript. There is no tool for an agent to `/compact` itself. The orchestrator now stays thin and a fixer subagent (own context, cheap model, worktree) does each fix and returns a seven-line report; a stack keeps one fixer so the feature stays in its head, and a repeat failure upgrades the stack to an Opus fixer. Stack membership is read once at queue start (`extras/stacks.sh`), because merging a base retargets its child onto develop and erases the link.
+

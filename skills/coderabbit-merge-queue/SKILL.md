@@ -123,9 +123,53 @@ wait instead of after the approval. Sleeping a full window after each merge
 used to put the previous PR's CI on top of the window: about 35 minutes lost
 per PR. A restart after a fix waits only what is left of the window too.
 
+## Orchestrating (keep the session lean)
+
+A queue runs for days and the sleeping scripts cost no context, but every `STOP`
+wakes this session, which then reads findings, diffs and CI logs, fixes, replies
+and restarts. Unrelated PRs pile up in one transcript. The agent **cannot run
+`/compact` itself** (only the user, or auto-compact near the limit), so split the
+work instead: **this session is the orchestrator and delegates every fix to a
+subagent**, whose context is discarded when it finishes.
+
+Install the two fixer agents once: `cp "$Q"/agents/*.md ~/.claude/agents/`.
+`merge-queue-fixer` runs on a cheap model; `merge-queue-fixer-opus` is the
+upgrade. Subagents cannot spawn agents, so only the orchestrator does.
+
+**Setup.** Before the first merge run `extras/stacks.sh <the list>` (a base's merge
+retargets its child onto develop, and the stack link is gone from `baseRefName`).
+Write `$RUN/state.md`: the ordered list, one `stack`/`solo` line per group from the
+script, and per group `fixer: none`, `model: haiku`, `strikes: 0`. Keep REMAINING,
+merged PRs and a line per STOP there too. **Re-read it on every wake; never rely on
+the transcript.**
+
+**On `STOP <pr>: <reason>`.**
+1. Find the group that holds `<pr>` in `state.md`.
+2. Draft the PR (`gh pr ready N --undo`) — orchestrator chore, like re-listing PRs.
+3. Group has a fixer → `SendMessage` it (STOP line + what changed). Otherwise spawn
+   `merge-queue-fixer` named `fix-<first PR of the group>` with
+   `isolation: "worktree"`, briefed with the repo, the STOP line, the matching row
+   of the table below, and the group line. A **stack keeps one fixer** until its last
+   PR merges (the whole feature stays in its head); an unrelated PR gets a new one.
+4. The fixer's last message is a fixed report: `pr`, `pushed`, `replies`, `issues`,
+   `ready-to-restart`, `needs-advice`, `needs-user`. Log it in `state.md`, relay it
+   (see Rules) and, on `ready-to-restart: yes`, restart `fullqueue.sh` with
+   `REMAINING`. The orchestrator alone starts and stops queue processes.
+5. `needs-advice`: answer in a few lines by `SendMessage`; you are the advisor. Ask
+   the user (`AskUserQuestion`) only when it is truly their decision, then forward
+   the answer. The fixer asks, never guesses, for: disputing a finding, design or
+   public-API changes (or more than ~3 files beyond the review's), a CI failure not
+   understood after one log read, a conflict outside docs/changelog/version catalog,
+   security, migrations or data.
+6. **Upgrade.** The same PR stops again with the same reason after a fixer push, or
+   `ready-to-restart: no` comes back twice (`strikes: 2`) → spawn
+   `merge-queue-fixer-opus` for that group, briefed with the earlier reports, set
+   `model: opus`, and keep it for the rest of the group.
+7. When a group's last PR merges, set its `fixer: none`.
+
 ## On `STOP <pr>: <reason>`
 
-Fix the cause, then restart **from that PR** with the rest of the list
+Fix the cause (the fixer does, see Orchestrating), then restart **from that PR** with the rest of the list
 (the queue waits out what is left of the window since its last request):
 
 | Reason | Do |
@@ -192,4 +236,4 @@ seconds after the check), and the window timed from the last request.
 - Hold PRs that must not ship yet out of the list entirely (e.g. migrations
   that a merge would auto-deploy to production).
 - Report to the user at each stop: what was merged, what stopped and why,
-  what you fixed, what is next in the queue.
+  what you fixed (from the fixer's report), what is next in the queue.
