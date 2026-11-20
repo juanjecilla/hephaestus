@@ -20,8 +20,20 @@ never from `/tmp` or a session scratchpad.** macOS deletes files under
 `/private/tmp` that nothing has opened for a few days, and a queue sleeping
 through review windows for days lost `nextpr.sh` that way. Do not edit a
 script while a queue is running it: bash reads a script as it runs, so an edit
-can break the running queue. To change the scripts mid-queue, run the queue
-from a frozen copy (`cp extras/*.sh ~/.cache/merge-queue-run/`) and edit here.
+can break the running queue. Run every queue from its own frozen copy and edit
+the originals here:
+
+```bash
+RUN=~/.cache/merge-queue-run/$(basename "$PWD")-$(date +%Y%m%d-%H%M%S)
+mkdir -p "$RUN" && cp queue.sh extras/*.sh "$RUN"/ && cd "$RUN"
+```
+
+**Never copy into `~/.cache/merge-queue-run/` itself, and never edit a copy
+you did not make:** that folder is shared by every session and repo, and one
+session's copy overwrote the `nextpr.sh` another session was running. Logs go
+in `$RUN` too. Only the review-request stamp (`.last-request-<owner>_<repo>`,
+the one-review-per-hour record) stays in `~/.cache/merge-queue-run/`, shared on
+purpose: a second queue on the same repo must see the first one's request.
 
 ## The loop
 
@@ -90,7 +102,23 @@ Before starting:
   on), then cheapest-to-review.
 
 Start it as a background command and get on with other work; you are notified
-when it exits:
+when it exits. **Run the script itself as the background command**
+(`run_in_background: true`, from the repo directory, `REPO`/`BASE_BRANCH`
+exported inline). Never wrap it in `nohup … &` or `… & disown`: the shell
+returns at once, the task reports "completed" in a second, and the queue's real
+exit (a STOP) fires no notification. A Muviss queue sat stopped on a red check
+for hours that way, unnoticed until the user asked. Check with
+`pgrep -fl fullqueue`; the task's own exit is the only STOP alarm.
+`fullqueue.sh` now enforces this: it refuses to start (exit 2) unless
+`QUEUE_TRACKED=1` is set, which only the documented start line below does
+(`QUEUE_DETACHED_OK=1` overrides on purpose). It also writes `last-exit` next
+to the script, `status=running|stopped|done` plus the STOP line and
+`remaining=`, at start and at every exit, and raises a notification on every
+stop (`QUEUE_NOTIFY_CMD`, run under bash with the message as `$1`; unset means a
+macOS notification when `osascript` exists, empty switches it off). A wake-up
+or a cold look at the queue starts with `extras/status.sh` (RUNNING / DONE /
+STOPPED / DIED; non-zero unless RUNNING or DONE). After any restart, confirm
+the start returned a task id.
 
 ```bash
 Q=<this skill's directory>    # e.g. ~/.claude/skills/coderabbit-merge-queue
@@ -103,7 +131,7 @@ the head makes every waiter cascade to "skipped", and each has to be killed by
 hand.
 
 ```bash
-BASE_BRANCH=develop "$Q/extras/fullqueue.sh" \
+QUEUE_TRACKED=1 BASE_BRANCH=develop "$Q/extras/fullqueue.sh" \
   620 624 base:648 593 640 close:631:640 648      # run_in_background: true
 ```
 

@@ -103,7 +103,9 @@ scripts: most odd-looking lines exist for one of these.
   `nextpr.sh` under a queue that was sleeping through review windows. Worktrees
   there lose their `.git` file the same way.
 - **Never edit a script a queue is running.** Bash reads it as it goes. Run
-  from a frozen copy in `~/.cache/merge-queue-run/` and edit the original.
+  from your own frozen copy in `~/.cache/merge-queue-run/<repo>-<timestamp>/`
+  (see SKILL.md) and edit the original. A shared flat copy was overwritten by
+  another session's run.
 - **Use the agent's background-task feature, not `&`.** A detached `&` gives
   no completion notification.
 - **One queue per repo.** Before starting, check for another session's queue
@@ -149,3 +151,9 @@ A finding that asks for "strict by default" can be wrong for reasons only a run 
 
 Every `STOP` cost a read-fix-reply-restart cycle in the one session that also owned the queue, so unrelated PRs piled up in a single transcript. There is no tool for an agent to `/compact` itself. The orchestrator now stays thin and a fixer subagent (own context, cheap model, worktree) does each fix and returns a seven-line report; a stack keeps one fixer so the feature stays in its head, and a repeat failure upgrades the stack to an Opus fixer. Stack membership is read once at queue start (`extras/stacks.sh`), because merging a base retargets its child onto develop and erases the link.
 
+
+## `nohup … &` hides the STOP
+
+A queue started as `nohup fullqueue.sh … &` inside a background command makes the *wrapper* exit in a second; the harness notifies "completed" for that, and nothing when the queue stops. The STOP on PR #747 (red `build` before review) waited about five hours until the user noticed nothing was running. Start `fullqueue.sh` directly with `run_in_background: true` so its exit is the notification. A start from the wrong directory fails with "not a git repository" for the same reason: `cd` to the repo in the same command.
+
+A second Muviss queue did the same thing on 2026-11-20 (restart after a fix, `nohup … & disown`; the stop on #1005's merge conflict waited about five hours), even with the lesson above in this file: a rule in prose is not enough. `fullqueue.sh` now refuses an untracked start (`QUEUE_TRACKED=1`), records `last-exit` at start and exit, notifies on every stop, and `status.sh` reads the record (DIED when it says running and the pid is gone). Tests: `extras/test/queue-test.sh`, "fullqueue.sh exit record" and "status.sh".

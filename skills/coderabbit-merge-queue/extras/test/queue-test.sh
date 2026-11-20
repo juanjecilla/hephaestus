@@ -17,7 +17,7 @@ trap 'rm -rf "${TMPS[@]}"' EXIT
 setup() {
   FAKE_DIR="$(mktemp -d)"; export FAKE_DIR; TMPS+=("$FAKE_DIR")
   mkdir "$FAKE_DIR/bin"; ln -s "$HERE/fake-gh" "$FAKE_DIR/bin/gh"
-  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60 RETARGET_WAIT=0 MARGIN=0 RATE_MARGIN=0 MERGEABLE_POLL=0 STAMP="$FAKE_DIR/stamp"
+  export PATH="$FAKE_DIR/bin:$PATH" POLL=0 RESOLVE_WAIT=0 REVIEW_WAIT=2 CHECKS_TIMEOUT=60 RETARGET_WAIT=0 MARGIN=0 RATE_MARGIN=0 MERGEABLE_POLL=0 STAMP="$FAKE_DIR/stamp" QUEUE_TRACKED=1 QUEUE_NOTIFY_CMD= QUEUE_EXIT_FILE="$FAKE_DIR/last-exit"
   echo '{"nameWithOwner":"o/r","defaultBranchRef":{"name":"main"}}' >"$FAKE_DIR/repo.json"
 }
 # pr N STATE [DECISION] [BASE] [COMMENT_BODY]
@@ -135,6 +135,85 @@ setup; pr 50 APPROVED CHANGES_REQUESTED; checks 50 "$REQ_PASS"
 out="$(REVIEW_WAIT=1 "$X/fullreview.sh" 50 2000-01-01T00:00:00Z)"
 expect_has "an approval replaced by a later review stops before merging (#563)" "$out" "STOP 50: review state=CHANGES_REQUESTED (a later review replaced the approval)"
 expect "and nothing is merged" "$([ -e "$FAKE_DIR/merged-50" ] && echo yes || echo no)" "no"
+
+echo "fullqueue.sh exit record"
+setup; pr 60 APPROVED APPROVED feat/x; touch "$FAKE_DIR/fail-edit"
+BASE_BRANCH=develop "$X/fullqueue.sh" base:60 >/dev/null 2>&1
+rec="$(cat "$FAKE_DIR/last-exit" 2>/dev/null)"
+expect_has "a stop leaves a record saying it stopped" "$rec" "status=stopped"
+expect_has "naming the STOP line" "$rec" "stop=STOP 60: could not retarget onto develop"
+expect_has "and the steps left" "$rec" "remaining=base:60"
+
+setup; pr 61 APPROVED develop
+BASE_BRANCH=develop "$X/fullqueue.sh" base:61 >/dev/null 2>&1
+rec="$(cat "$FAKE_DIR/last-exit" 2>/dev/null)"
+expect_has "a queue that ran every step records that it is done" "$rec" "status=done"
+expect_has "with nothing left" "$rec" "remaining="
+
+setup; pr 62 none; checks 62 "$REQ_PASS"
+WINDOW=0 REVIEW_WAIT=1 BASE_BRANCH=develop "$X/fullqueue.sh" 62 >/dev/null 2>&1
+expect_has "a stop raised inside chain.sh is named too, not only fullqueue.sh's own" "$(cat "$FAKE_DIR/last-exit" 2>/dev/null)" "stop=STOP 62:"
+
+setup; pr 63 APPROVED APPROVED feat/x; touch "$FAKE_DIR/fail-edit"
+QUEUE_NOTIFY_CMD='printf %s "$1" >"$FAKE_DIR/notified"' BASE_BRANCH=develop "$X/fullqueue.sh" base:63 >/dev/null 2>&1
+expect_has "a stop runs the notify hook with the STOP line" "$(cat "$FAKE_DIR/notified" 2>/dev/null)" "STOP 63: could not retarget onto develop"
+
+setup; pr 64 APPROVED develop
+QUEUE_NOTIFY_CMD='printf %s "$1" >"$FAKE_DIR/notified"' BASE_BRANCH=develop "$X/fullqueue.sh" base:64 >/dev/null 2>&1
+expect_has "a finished queue runs it too" "$(cat "$FAKE_DIR/notified" 2>/dev/null)" "all done"
+
+setup; pr 65 APPROVED APPROVED feat/x; touch "$FAKE_DIR/fail-edit"
+QUEUE_NOTIFY_CMD='exit 7' BASE_BRANCH=develop "$X/fullqueue.sh" base:65 >/dev/null 2>&1; rc=$?
+expect "a notify hook that fails does not change the queue's exit code" "$rc" "1"
+expect_has "nor lose the record" "$(cat "$FAKE_DIR/last-exit" 2>/dev/null)" "status=stopped"
+
+setup; pr 66 APPROVED APPROVED feat/x; touch "$FAKE_DIR/fail-edit"
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"$FAKE_DIR/osascript-args"\n' >"$FAKE_DIR/bin/osascript"; chmod +x "$FAKE_DIR/bin/osascript"
+env -u QUEUE_NOTIFY_CMD BASE_BRANCH=develop "$X/fullqueue.sh" base:66 >/dev/null 2>&1
+expect_has "with no hook set, a stop raises a macOS notification when osascript exists" "$(cat "$FAKE_DIR/osascript-args" 2>/dev/null)" "STOP 66: could not retarget onto develop"
+
+setup; pr 67 APPROVED APPROVED feat/x; touch "$FAKE_DIR/fail-edit"
+printf '#!/bin/bash\necho called >"$FAKE_DIR/osascript-args"\n' >"$FAKE_DIR/bin/osascript"; chmod +x "$FAKE_DIR/bin/osascript"
+BASE_BRANCH=develop "$X/fullqueue.sh" base:67 >/dev/null 2>&1
+expect_none "an empty QUEUE_NOTIFY_CMD switches notifications off" "$FAKE_DIR/osascript-args"
+
+setup; pr 68 APPROVED APPROVED feat/x
+out="$(env -u QUEUE_TRACKED BASE_BRANCH=develop "$X/fullqueue.sh" base:68 2>&1)"; rc=$?
+expect "a queue not started as a tracked background task refuses (a nohup start hid a STOP for hours)" "$rc" "2"
+expect_has "and says how to start it" "$out" "run_in_background"
+expect "and runs no step" "$(cat "$FAKE_DIR/log" 2>/dev/null | grep -c 'pr edit')" "0"
+
+setup; pr 69 APPROVED develop
+out="$(env -u QUEUE_TRACKED QUEUE_DETACHED_OK=1 BASE_BRANCH=develop "$X/fullqueue.sh" base:69 2>&1)"
+expect_has "QUEUE_DETACHED_OK=1 lets a deliberate detached start through" "$out" "all done"
+
+echo "status.sh"
+setup; pr 70 APPROVED develop
+BASE_BRANCH=develop "$X/fullqueue.sh" base:70 >/dev/null 2>&1
+expect_has "a finished queue's record reads DONE" "$("$X/status.sh" "$FAKE_DIR/last-exit")" "DONE"
+
+setup; printf 'status=stopped\nat=2026-11-20T00:28:25Z\nstop=STOP 1005: merge conflict with base\nremaining=1005 935\n' >"$FAKE_DIR/last-exit"
+out="$("$X/status.sh" "$FAKE_DIR/last-exit")"; rc=$?
+expect_has "a stopped queue shows the STOP line" "$out" "STOP 1005: merge conflict with base"
+expect_has "and what is left" "$out" "1005 935"
+expect "and exits non-zero so a poll notices" "$rc" "1"
+
+setup; printf 'status=running\npid=%s\nat=2026-11-20T00:28:25Z\n' "$$" >"$FAKE_DIR/last-exit"
+expect_has "a live pid reads RUNNING" "$("$X/status.sh" "$FAKE_DIR/last-exit")" "RUNNING"
+
+setup; printf 'status=running\npid=999999\nat=2026-11-20T00:28:25Z\n' >"$FAKE_DIR/last-exit"
+out="$("$X/status.sh" "$FAKE_DIR/last-exit")"; rc=$?
+expect_has "a running record whose process is gone reads DIED (killed, or crashed before it could record)" "$out" "DIED"
+expect "non-zero too" "$rc" "1"
+
+setup; pr 71 APPROVED APPROVED feat/x; touch "$FAKE_DIR/fail-edit"
+RETARGET_WAIT=2 BASE_BRANCH=develop "$X/fullqueue.sh" base:71 >/dev/null 2>&1 & qpid=$!
+sleep 1
+rec="$(cat "$FAKE_DIR/last-exit" 2>/dev/null)"
+expect_has "a queue records itself as running as soon as it starts" "$rec" "status=running"
+expect_has "with its pid, so status.sh can tell a live queue from a dead one" "$rec" "pid=$qpid"
+wait $qpid
+expect_has "and the stop replaces it when the queue ends" "$(cat "$FAKE_DIR/last-exit")" "status=stopped"
 
 echo "nextpr.sh"
 # fresh N: a PR whose review lands after nextpr.sh asks for it

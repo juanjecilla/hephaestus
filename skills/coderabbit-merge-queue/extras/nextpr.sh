@@ -9,7 +9,7 @@
 # at 07:14, approved at 07:23 and then waited 35 more minutes for the CI its update-branch started.
 pr=$1; window=${2:-3600}; D="$(cd "$(dirname "$0")" && pwd)"
 R="${REPO:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
-STAMP="${STAMP:-$D/.last-request-${R//\//_}}"
+STAMP="${STAMP:-${MERGE_QUEUE_HOME:-$HOME/.cache/merge-queue-run}/.last-request-${R//\//_}}"
 # The PR is still a draft here, so this push spends no review, and its CI runs during the wait.
 gh pr update-branch "$pr" --repo "$R" >/dev/null 2>&1
 last=$(cat "$STAMP" 2>/dev/null || true)
