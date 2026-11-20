@@ -115,7 +115,7 @@ for hours that way, unnoticed until the user asked. Check with
 to the script, `status=running|stopped|done` plus the STOP line and
 `remaining=`, at start and at every exit, and raises a notification on every
 stop (`QUEUE_NOTIFY_CMD`, run under bash with the message as `$1`; unset means a
-macOS notification when `osascript` exists, empty switches it off). A wake-up
+macOS notification when `osascript` exists, empty switches it off). It also runs `caffeinate -i -w <pid>` so an idle Mac does not sleep through the waits (`QUEUE_NO_CAFFEINATE=1` opts out); a closed lid still sleeps, so `status.sh` on wake is the fallback. A wake-up
 or a cold look at the queue starts with `extras/status.sh` (RUNNING / DONE /
 STOPPED / DIED; non-zero unless RUNNING or DONE). After any restart, confirm
 the start returned a task id.

@@ -40,6 +40,10 @@ notify() { # status remaining
   fi
   return 0
 }
+# A sleeping Mac stalls every wait and can swallow the stop banner; hold it awake while this process lives.
+if [ "${QUEUE_NO_CAFFEINATE:-}" != 1 ] && command -v caffeinate >/dev/null 2>&1; then
+  caffeinate -i -w "$$" >/dev/null 2>&1 &
+fi
 printf 'status=running\npid=%s\nat=%s\n' "$$" "$(date -u +%FT%TZ)" >"$EXIT_FILE"
 for i in "${!steps[@]}"; do
   s=${steps[$i]}

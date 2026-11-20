@@ -187,6 +187,18 @@ setup; pr 69 APPROVED develop
 out="$(env -u QUEUE_TRACKED QUEUE_DETACHED_OK=1 BASE_BRANCH=develop "$X/fullqueue.sh" base:69 2>&1)"
 expect_has "QUEUE_DETACHED_OK=1 lets a deliberate detached start through" "$out" "all done"
 
+setup; pr 72 APPROVED develop
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"$FAKE_DIR/caffeinate-args"\n' >"$FAKE_DIR/bin/caffeinate"; chmod +x "$FAKE_DIR/bin/caffeinate"
+BASE_BRANCH=develop "$X/fullqueue.sh" base:72 >/dev/null 2>&1; sleep 0.3
+args="$(cat "$FAKE_DIR/caffeinate-args" 2>/dev/null)"
+expect_has "the queue asks caffeinate to keep the Mac awake (idle sleep stalls its waits)" "$args" "-i"
+expect_has "for as long as the queue's own process lives" "$args" "-w"
+
+setup; pr 73 APPROVED develop
+printf '#!/bin/bash\necho called >"$FAKE_DIR/caffeinate-args"\n' >"$FAKE_DIR/bin/caffeinate"; chmod +x "$FAKE_DIR/bin/caffeinate"
+QUEUE_NO_CAFFEINATE=1 BASE_BRANCH=develop "$X/fullqueue.sh" base:73 >/dev/null 2>&1; sleep 0.3
+expect_none "QUEUE_NO_CAFFEINATE=1 opts out" "$FAKE_DIR/caffeinate-args"
+
 echo "status.sh"
 setup; pr 70 APPROVED develop
 BASE_BRANCH=develop "$X/fullqueue.sh" base:70 >/dev/null 2>&1
