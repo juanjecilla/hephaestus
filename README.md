@@ -38,9 +38,9 @@ Also: [`snippets/AGENTS-agent-workflow.md`](snippets/AGENTS-agent-workflow.md) (
 Claude Code:
 ```
 /plugin marketplace add juanjecilla/hephaestus
-/plugin install hephaestus --marketplace juanjecilla/hephaestus
+/plugin install hephaestus@hephaestus
 ```
-*Install lines are untested against GitHub until the repo is public; `claude plugin validate .` passes.*
+*Checked 2026-11-21: both lines install v0.1.0 from the public repo (`claude plugin marketplace add`, then `claude plugin install hephaestus@hephaestus`); `claude plugin validate .` passes.*
 
 Other agents: copy `skills/<name>` into the folder your agent reads (`.agents/skills/`, `~/.claude/skills/`…). Each skill is self-contained except `a11y-audit`, which also calls `talkback-speak`.
 
