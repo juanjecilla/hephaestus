@@ -265,6 +265,30 @@ setup; pr 34 APPROVED; fresh 34; checks 34 "$REQ_PASS"; rm -f "$FAKE_DIR/stamp"
 start=$SECONDS; "$X/nextpr.sh" 34 2 >/dev/null
 expect "with no record of a request it waits the whole window" "$(( SECONDS - start >= 2 ))" "1"
 
+echo "GitHub unreachable"
+setup; pr 80 APPROVED; fresh 80; checks 80 "$REQ_PASS"; echo 0 >"$FAKE_DIR/stamp"; touch "$FAKE_DIR/fail-comment"
+out="$("$X/nextpr.sh" 80 3600)"; rc=$?
+expect_has "a review request that GitHub refuses stops at once, naming it (a dropped network once read as 'no review')" "$out" "STOP 80: could not ask for the review"
+expect "with a non-zero exit" "$rc" "1"
+expect "and no request is recorded, so the window is not burned" "$(cat "$FAKE_DIR/stamp")" "0"
+
+setup; pr 81 APPROVED; fresh 81; checks 81 "$REQ_PASS"; echo 0 >"$FAKE_DIR/stamp"; touch "$FAKE_DIR/fail-ready"
+out="$("$X/nextpr.sh" 81 3600)"
+expect_has "a PR that cannot be marked ready stops before any request" "$out" "STOP 81: could not mark it ready"
+expect "so nothing is asked of CodeRabbit" "$(grep -c 'pr comment 81' "$FAKE_DIR/log")" "0"
+
+setup; pr 82 none; touch "$FAKE_DIR/fail-view"
+out="$(NET_FAIL_MAX=3 REVIEW_WAIT=2 "$X/fullreview.sh" 82 2000-01-01T00:00:00Z)"
+expect_has "a poll loop that cannot reach GitHub says so instead of 'no review'" "$out" "STOP 82: GitHub unreachable"
+
+setup; pr 83 APPROVED; checks 83 "$REQ_PASS"; echo 3 >"$FAKE_DIR/flaky-view-83"
+out="$(NET_FAIL_MAX=10 REVIEW_WAIT=2 "$X/fullreview.sh" 83 2000-01-01T00:00:00Z)"
+expect_has "a short network drop does not use up the review polls" "$out" "merged 83"
+
+setup; pr 84 none
+out="$(REVIEW_WAIT=2 "$X/fullreview.sh" 84 2000-01-01T00:00:00Z)"
+expect_has "no review with GitHub reachable still reads as no review" "$out" "STOP 84: no full review in 2 polls"
+
 echo "chain.sh"
 setup; lone="$(mktemp -d)"; TMPS+=("$lone"); cp "$X/chain.sh" "$lone/"
 out="$("$lone/chain.sh" 16)"

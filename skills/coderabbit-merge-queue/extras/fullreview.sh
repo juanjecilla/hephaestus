@@ -29,16 +29,27 @@ stated_wait() {
     | awk '/hour/{t+=$1*3600} /minute/{t+=$1*60} /second/{t+=$1} END{if (NR) print t}'
 }
 
+# A `gh` call that fails (the network dropped, the Mac slept) prints nothing, and nothing reads as "no
+# review yet" or, for the rate-limit count, as "not 0": #936 was reported rate limited and #925 "no review"
+# on a dead network. A failed read is not a poll: ask again, and give up only after NET_FAIL_MAX of them.
+fails=0; polls=0
+net_blip() {
+  fails=$((fails + 1))
+  if [ "$fails" -ge "${NET_FAIL_MAX:-30}" ]; then
+    echo "STOP $pr: GitHub unreachable ($fails failed reads; the review request may already be posted, nothing is lost)"; exit 1
+  fi
+}
 st=""; retried=""
-for _ in $(seq 1 "${REVIEW_WAIT:-60}"); do
+while [ "$polls" -lt "${REVIEW_WAIT:-60}" ]; do
   sleep "$POLL"
-  st=$(gh pr view "$pr" --json reviews -q "[.reviews[]|select(.author.login==\"coderabbitai\" and .submittedAt>\"$since\")|.state]|last // empty")
+  st=$(gh pr view "$pr" --json reviews -q "[.reviews[]|select(.author.login==\"coderabbitai\" and .submittedAt>\"$since\")|.state]|last // empty") || { net_blip; continue; }
+  polls=$((polls + 1))
   [ -n "$st" ] && break
-  rl=$(gh pr view "$pr" --json comments -q "[.comments[]|select(.author.login==\"coderabbitai\" and .createdAt>\"$since\" and (.body|test(\"Review limit reached|rate limit\")))]|length")
+  rl=$(gh pr view "$pr" --json comments -q "[.comments[]|select(.author.login==\"coderabbitai\" and .createdAt>\"$since\" and (.body|test(\"Review limit reached|rate limit\")))]|length") || { net_blip; continue; }
   if [ "$rl" != "0" ]; then
     # The limit reply can land seconds after an approval of the head (#512): that approval stands.
     # shellcheck disable=SC2016 # $h is jq's, not the shell's
-    head_ok=$(gh pr view "$pr" --json headRefOid,reviews -q '.headRefOid as $h|[.reviews[]|select(.author.login=="coderabbitai")]|last|(.state=="APPROVED" and .commit.oid==$h)')
+    head_ok=$(gh pr view "$pr" --json headRefOid,reviews -q '.headRefOid as $h|[.reviews[]|select(.author.login=="coderabbitai")]|last|(.state=="APPROVED" and .commit.oid==$h)') || { net_blip; continue; }
     [ "$head_ok" = "true" ] && { st=APPROVED; break; }
     # A short stated wait is the window's edge: CodeRabbit counts the hour from its own reply, a minute
     # or so after the request (#588 was refused with 37 seconds to go). Sit it out and ask once more.
@@ -52,9 +63,10 @@ for _ in $(seq 1 "${REVIEW_WAIT:-60}"); do
     echo "STOP $pr: rate limited (full review)"; exit 1
   fi
   # "Full review finished" with nothing new posts no review: fall back to the standing decision.
-  fin=$(gh pr view "$pr" --json comments -q "[.comments[]|select(.author.login==\"coderabbitai\" and .createdAt>\"$since\" and (.body|test(\"Full review finished\")))]|length")
+  fin=$(gh pr view "$pr" --json comments -q "[.comments[]|select(.author.login==\"coderabbitai\" and .createdAt>\"$since\" and (.body|test(\"Full review finished\")))]|length") || { net_blip; continue; }
   if [ "$fin" != "0" ]; then
-    st=$(gh pr view "$pr" --json reviewDecision -q .reviewDecision); [ "$st" = "APPROVED" ] && break
+    st=$(gh pr view "$pr" --json reviewDecision -q .reviewDecision) || { st=""; net_blip; continue; }
+    [ "$st" = "APPROVED" ] && break
     gh pr comment "$pr" --body "@coderabbitai resolve" >/dev/null; sleep "${RESOLVE_WAIT:-120}"
     st=$(gh pr view "$pr" --json reviewDecision -q .reviewDecision); break
   fi

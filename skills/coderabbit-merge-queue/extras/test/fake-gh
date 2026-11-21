@@ -8,6 +8,7 @@
 #   api/<path>.json  what `gh api <path>` returns, `/` in the path written as `_` (missing: [])
 # A file fail-<verb> (e.g. fail-merge) makes that verb exit 1. A file race-edit-N holding a branch
 # makes `pr edit N` fail the way it does when GitHub retargeted N first, and sets that base.
+# A file flaky-view-N holding a count makes that many `pr view N` calls fail first (a network drop).
 # A file on-comment-N.json replaces pr-N.json on the next `pr comment N` (a review that a
 # fresh request brings in). A `--watch` over a pending
 # check touches $FAKE_DIR/stalled, since the real one would block until it finishes.
@@ -35,6 +36,11 @@ if [ "$cmd" = "pr edit" ] && [ -e "$FAKE_DIR/race-edit-$n" ]; then
   echo "GraphQL: A pull request already exists for base branch" >&2; exit 1
 fi
 [ -e "$FAKE_DIR/fail-${args[1]:-}" ] && exit 1
+# A file flaky-view-N holding a count makes the next that many `pr view N` calls fail (a network drop).
+if [ "$cmd" = "pr view" ] && [ -s "$FAKE_DIR/flaky-view-$n" ]; then
+  left=$(cat "$FAKE_DIR/flaky-view-$n")
+  if [ "$left" -gt 0 ]; then echo $((left - 1)) >"$FAKE_DIR/flaky-view-$n"; exit 1; fi
+fi
 case "$cmd" in
   "pr view") jq -r "$filter" "$FAKE_DIR/pr-$n.json" ;;
   "pr checks")

@@ -32,7 +32,11 @@ for _ in 1 2 3 4 5 6; do
   [ "$m" = UNKNOWN ] || break; sleep "${MERGEABLE_POLL:-10}"
 done
 if [ "$m" = CONFLICTING ]; then echo "STOP $pr: merge conflict with base (no review spent)"; exit 1; fi
-gh pr ready "$pr" --repo "$R" >/dev/null 2>&1
+# A refused call is a dropped network, not an answer: stop here, before anything is asked or recorded.
+gh pr ready "$pr" --repo "$R" >/dev/null 2>&1 \
+  || { echo "STOP $pr: could not mark it ready (GitHub unreachable? no review spent)"; exit 1; }
 since=$(date -u -d '-1 min' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1M +%Y-%m-%dT%H:%M:%SZ)
-gh pr comment "$pr" --repo "$R" --body "@coderabbitai full review" >/dev/null && date +%s >"$STAMP"
+gh pr comment "$pr" --repo "$R" --body "@coderabbitai full review" >/dev/null \
+  || { echo "STOP $pr: could not ask for the review (GitHub unreachable? nothing spent, no request recorded)"; exit 1; }
+date +%s >"$STAMP"
 STAMP="$STAMP" "$D/fullreview.sh" "$pr" "$since"
