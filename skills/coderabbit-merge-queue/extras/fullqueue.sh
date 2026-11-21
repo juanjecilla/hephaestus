@@ -30,7 +30,7 @@ record_exit() { # status remaining
 # A detached queue fires no task notification, so tell the person ourselves.
 # QUEUE_NOTIFY_CMD runs under bash with the message as $1 (unset: macOS notification if osascript exists); a failing hook never changes the exit code.
 notify() { # status remaining
-  local msg; if [ "$1" = done ]; then msg="Merge queue: all done"; else
+  local msg; if [ "$1" = "done" ]; then msg="Merge queue: all done"; else
     msg="$(grep '^STOP' "$LOG" | tail -1) (left: $2)"; fi
   if [ "${QUEUE_NOTIFY_CMD+set}" ]; then   # set, even empty, wins; empty switches it off
     [ -n "$QUEUE_NOTIFY_CMD" ] && { bash -c "$QUEUE_NOTIFY_CMD" _ "$msg" >/dev/null 2>&1 || true; }
@@ -70,4 +70,4 @@ for i in "${!steps[@]}"; do
   esac || { say "REMAINING: ${steps[*]:$i}"; record_exit stopped "${steps[*]:$i}"; exit 1; }
 done
 say "all done"
-record_exit done ""
+record_exit "done" ""
